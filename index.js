@@ -3,6 +3,7 @@ const cors = require('cors');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 require('dotenv').config();
 const jwt = require('jsonwebtoken');
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY)
 const app = express();
 const port = process.env.PORT || 5000;
 
@@ -51,7 +52,7 @@ async function run() {
 
         // MIDDLeware verify Token
         const verifyToken = async (req, res, next) => {
-            console.log('inside verify token', req.headers.authorization);
+            // console.log('inside verify token', req.headers.authorization);
 
             if (!req.headers.authorization) {
                 return res.status(401).send({ message: 'Unauthorized  access' });
@@ -158,12 +159,6 @@ async function run() {
 
 
 
-
-
-
-
-
-
         // MENU ReLAted APis
         // Get Many for All Menu
         app.get('/menu', async (req, res) => {
@@ -171,6 +166,57 @@ async function run() {
             const result = await cursor.toArray();
             res.send(result);
         })
+
+        // Get single for Admin manage item update page 
+        app.get('/updateMenu/:id', async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) };
+            const result = await menuCollection.findOne(query);
+            res.send(result);
+        })
+
+        // Patch for Admin update item page
+        app.patch('/editMenu/:id', async (req, res) => {
+            const item = req.body;
+            const id = req.params.id;
+            console.log(item, id);
+            const filter = { _id: new ObjectId(id) };
+            const updateDoc = {
+                $set: {
+                    name: item.name,
+                    category: item.category,
+                    price: item.price,
+                    recipe: item.recipe,
+                    image: item.image
+                }
+            }
+
+            const result = await menuCollection.updateOne(filter, updateDoc);
+            res.send(result);
+
+
+        })
+
+
+
+        // post method for Add Item Admin page
+        app.post('/menu', verifyToken, verifyAdmin, async (req, res) => {
+            const menuItem = req.body;
+            const result = await menuCollection.insertOne(menuItem);
+            res.send(result);
+        })
+
+
+        // Delete Method for ManageItems Admin page
+        app.delete('/menu/:id', verifyToken, verifyAdmin, async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) }
+            const result = await menuCollection.deleteOne(query);
+            res.send(result);
+        })
+
+
+
 
         // Get Many for All Reviews
         app.get('/reviews', async (req, res) => {
@@ -203,6 +249,28 @@ async function run() {
             const result = await cartCollection.insertOne(cart);
             res.send(result);
         })
+
+        // payment Intent
+        app.post("/create-payment-intent", async (req, res) => {
+            const { price } = req.body;
+            const amount = parseInt(price * 100);
+            const paymentIntent = await stripe.paymentIntents.create({
+                amount: amount,
+                currency: "usd",
+                payment_method_types: ["card"]
+            });
+
+            res.send({
+                clientSecret: paymentIntent.client_secret,
+            });
+        })
+
+
+
+
+
+
+
 
 
         // Send a ping to confirm a successful connection
