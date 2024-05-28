@@ -36,6 +36,8 @@ async function run() {
         const cartCollection = client.db("dishdashDb").collection("carts");
         // user collection
         const userCollection = client.db("dishdashDb").collection("users");
+        // payment collection
+        const paymentCollection = client.db("dishdashDb").collection("payments");
 
 
 
@@ -250,10 +252,13 @@ async function run() {
             res.send(result);
         })
 
-        // payment Intent
+
+
+        // payment Intent for CheckoutForm pages
         app.post("/create-payment-intent", async (req, res) => {
             const { price } = req.body;
             const amount = parseInt(price * 100);
+            console.log(amount)
             const paymentIntent = await stripe.paymentIntents.create({
                 amount: amount,
                 currency: "usd",
@@ -265,6 +270,45 @@ async function run() {
             });
         })
 
+
+
+        // after payment  for CheckoutForm pages
+        app.post('/payments', async (req, res) => {
+            const payment = req.body;
+            const paymentResult = await paymentCollection.insertOne(payment);
+
+            console.log("payment info", payment);
+
+            // carefully delete eah item from the card
+            const query = {
+                _id: {
+                    $in: payment.cartIds.map(id => new ObjectId(id))
+                }
+            };
+
+            const deleteResult = await cartCollection.deleteMany(query)
+
+
+
+
+            res.send({ paymentResult, deleteResult });
+
+
+        })
+
+
+
+        // Get method for Payment history pages
+        app.get('/payments/:email', verifyToken, async (req, res) => {
+            const email = req.params.email;
+            const query = { email: email }
+            if (req.params.email !== req.decoded.user.email){
+                return res.status(403).send({message: 'forbidden access'})
+            }
+
+            const result = await paymentCollection.find(query).toArray();
+            res.send(result);
+        })
 
 
 
