@@ -322,7 +322,7 @@ async function run() {
             //  for get revenue
             /*    const payments = await paymentCollection.find().toArray();
                const revenue = payments.reduce((sum, payment) => sum + payment.price, 0) */
-
+            //  another best way to get revenue
             const result = await paymentCollection.aggregate([
                 {
                     $group: {
@@ -348,6 +348,65 @@ async function run() {
             })
         })
 
+
+
+
+        // USing Aggregate pipeline
+        app.get('/order-stats', async (req, res) => {
+            const result = await paymentCollection.aggregate([
+
+                {
+                    $addFields: {
+                        menuIds: {
+                            $map: {
+                                input: "$menuIds",
+                                as: "menuId",
+                                in: { $toObjectId: "$$menuId" }
+                            }
+                        }
+                    }
+                },
+
+                {
+                    $unwind: '$menuIds'
+                },
+
+                {
+                    $lookup: {
+                        from: 'menu',
+                        localField: 'menuIds',
+                        foreignField: '_id',
+                        as: 'menuItems'
+                    }
+                },
+
+                {
+                    $unwind: '$menuItems'
+                },
+
+                {
+                    $group: {
+                        _id: '$menuItems.category',
+                        quantity: { $sum: 1 },
+                        revenue: { $sum: '$menuItems.price' }
+
+                    }
+                },
+                // to change the (_id) name to (category) and others name is similar to previous name
+                {
+                    $project: {
+                        _id: 0,   // this is not gonna send for rename thats why (0)
+                        category: '$_id',    // rename (_id) name will be (category)
+                        quantity: '$quantity',   // keep previous name
+                        revenue: '$revenue'   // keep previous name
+                    }
+                }
+
+
+            ]).toArray();
+
+            res.send(result);
+        })
 
 
 
